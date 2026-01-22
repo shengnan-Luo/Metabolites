@@ -1,5 +1,5 @@
 {
-  "name": "ChemBatch AI Query",
+  "name": "布布 AI Query",
   "description": "Batch query chemical compound information using custom OpenAI-compatible APIs.",
   "requestFramePermissions": []
 }
