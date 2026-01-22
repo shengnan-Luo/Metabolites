@@ -211,7 +211,7 @@ function App() {
       <main className="flex-1 overflow-hidden p-6 flex flex-col gap-8 max-w-[1920px] mx-auto w-full">
         
         {/* Top Section: Config & Inputs */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-auto lg:h-[650px] shrink-0">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-auto lg:h-[520px] shrink-0">
           <div className="lg:col-span-3 h-[450px] lg:h-full">
             <ConfigPanel 
               config={config} 
