@@ -10,6 +10,7 @@ const DEFAULT_CONFIG: ApiConfig = {
   endpoint: 'https://api.openai.com/v1/chat/completions',
   apiKey: '',
   model: 'gpt-3.5-turbo',
+  concurrency: 3,
 };
 
 const DEFAULT_PROMPT = `请提供以下化合物的信息：{{compound}}。
@@ -71,8 +72,7 @@ function App() {
     setProgress({ total: initialItems.length, completed: 0, success: 0, failed: 0 });
 
     // 3. Processing Loop (Sequential for simplicity and rate limit safety, can be parallelized with p-limit if needed)
-    // We will use a simple concurrency of 1 to be safe with unknown APIs, or maybe 3. Let's do 3.
-    const CONCURRENCY = 3;
+    const CONCURRENCY = config.concurrency || 1;
     let currentIndex = 0;
     
     const processItem = async (index: number) => {

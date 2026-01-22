@@ -9,6 +9,7 @@ export interface ApiConfig {
   endpoint: string;
   apiKey: string;
   model: string;
+  concurrency: number;
 }
 
 export interface QueryItem {

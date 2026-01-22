@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, Key, Server, Cpu } from 'lucide-react';
+import { Settings, Key, Server, Cpu, Zap } from 'lucide-react';
 import { ApiConfig } from '../types';
 
 interface ConfigPanelProps {
@@ -9,7 +9,7 @@ interface ConfigPanelProps {
 }
 
 export const ConfigPanel: React.FC<ConfigPanelProps> = ({ config, onConfigChange, disabled }) => {
-  const handleChange = (field: keyof ApiConfig, value: string) => {
+  const handleChange = (field: keyof ApiConfig, value: string | number) => {
     onConfigChange({ ...config, [field]: value });
   };
 
@@ -65,6 +65,23 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({ config, onConfigChange
             placeholder="e.g., gpt-3.5-turbo, deepseek-chat"
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-accent focus:border-transparent outline-none text-sm transition-all"
           />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-600 mb-1 flex items-center gap-2">
+            <Zap className="w-4 h-4" />
+            并发数量 (Concurrency)
+          </label>
+          <input
+            type="number"
+            min="1"
+            max="50"
+            value={config.concurrency}
+            onChange={(e) => handleChange('concurrency', Math.max(1, parseInt(e.target.value) || 1))}
+            disabled={disabled}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-accent focus:border-transparent outline-none text-sm transition-all"
+          />
+          <p className="text-xs text-gray-400 mt-1">同时进行的请求数量 (建议 1-10)</p>
         </div>
       </div>
 
