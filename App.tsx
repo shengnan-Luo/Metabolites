@@ -7,9 +7,9 @@ import { ApiConfig, QueryItem, RequestStatus, BatchProgress } from './types';
 import { fetchCompletion } from './services/apiService';
 
 const DEFAULT_CONFIG: ApiConfig = {
-  endpoint: 'https://api.openai.com/v1/chat/completions',
+  endpoint: 'https://x666.me/v1/chat/completions',
   apiKey: '',
-  model: 'gpt-3.5-turbo',
+  model: 'gemini-3-flash-preview',
   concurrency: 3,
 };
 
