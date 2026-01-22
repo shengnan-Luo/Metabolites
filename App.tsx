@@ -163,7 +163,7 @@ function App() {
             <FlaskConical className="w-6 h-6 text-accent" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-800">ChemBatch AI</h1>
+            <h1 className="text-xl font-bold text-slate-800">布布 AI</h1>
             <p className="text-xs text-slate-500">批量化合物智能查询系统</p>
           </div>
         </div>
