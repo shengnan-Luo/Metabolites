@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, CheckCircle, AlertCircle, Loader2, Copy } from 'lucide-react';
+import { Download, CheckCircle, AlertCircle, Loader2, Copy, Database } from 'lucide-react';
 import { QueryItem, RequestStatus } from '../types';
 
 interface ResultsTableProps {
@@ -44,15 +44,15 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
   if (results.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-64 bg-white rounded-xl border border-gray-200 text-gray-400">
-        <Database className="w-12 h-12 mb-2 opacity-20" /> {/* Re-using Database icon idea conceptually, or just simple text */}
+        <Database className="w-12 h-12 mb-2 opacity-20" />
         <p>暂无数据，请运行查询</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col h-full overflow-hidden">
-      <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col min-h-[300px]">
+      <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-xl">
         <h3 className="font-bold text-slate-700">查询结果 ({results.length})</h3>
         <button
           onClick={downloadCSV}
@@ -63,9 +63,9 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
         </button>
       </div>
       
-      <div className="overflow-auto flex-1">
+      <div className="overflow-x-auto w-full">
         <table className="w-full text-sm text-left">
-          <thead className="text-xs text-gray-500 uppercase bg-gray-100 sticky top-0 z-10">
+          <thead className="text-xs text-gray-500 uppercase bg-gray-100">
             <tr>
               <th className="px-6 py-3 w-16">#</th>
               <th className="px-6 py-3 w-48">化合物</th>
@@ -124,7 +124,3 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
     </div>
   );
 };
-
-// Add icon for missing import in this file context specifically if strictly needed, 
-// though lucide-react was imported at top.
-import { Database } from 'lucide-react'; 
