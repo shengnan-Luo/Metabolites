@@ -157,7 +157,7 @@ function App() {
   return (
     <div className="flex flex-col h-screen bg-slate-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center shadow-sm z-20">
+      <header className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center shadow-sm z-20 shrink-0">
         <div className="flex items-center gap-3">
           <div className="bg-accent/10 p-2 rounded-lg">
             <FlaskConical className="w-6 h-6 text-accent" />
@@ -208,18 +208,18 @@ function App() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-hidden p-6 flex flex-col gap-6 max-w-[1920px] mx-auto w-full">
+      <main className="flex-1 overflow-hidden p-6 flex flex-col gap-8 max-w-[1920px] mx-auto w-full">
         
         {/* Top Section: Config & Inputs */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[450px]">
-          <div className="lg:col-span-3 h-full">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-auto lg:h-[520px] shrink-0">
+          <div className="lg:col-span-3 h-[450px] lg:h-full">
             <ConfigPanel 
               config={config} 
               onConfigChange={setConfig} 
               disabled={isProcessing} 
             />
           </div>
-          <div className="lg:col-span-9 h-full">
+          <div className="lg:col-span-9 h-[450px] lg:h-full">
             <InputSection 
               compoundsText={compoundsText} 
               setCompoundsText={setCompoundsText}

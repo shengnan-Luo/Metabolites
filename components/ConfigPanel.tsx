@@ -14,13 +14,13 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({ config, onConfigChange
   };
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 h-full flex flex-col gap-6">
-      <div className="flex items-center gap-2 border-b border-gray-100 pb-4">
+    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 h-full flex flex-col gap-6 overflow-y-auto">
+      <div className="flex items-center gap-2 border-b border-gray-100 pb-4 shrink-0">
         <Settings className="w-5 h-5 text-accent" />
         <h2 className="text-lg font-bold text-slate-800">API 配置</h2>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-4 shrink-0">
         <div>
           <label className="block text-sm font-medium text-slate-600 mb-1 flex items-center gap-2">
             <Server className="w-4 h-4" />
@@ -85,7 +85,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({ config, onConfigChange
         </div>
       </div>
 
-      <div className="mt-auto bg-blue-50 p-4 rounded-lg text-sm text-blue-800 border border-blue-100">
+      <div className="mt-auto bg-blue-50 p-4 rounded-lg text-sm text-blue-800 border border-blue-100 shrink-0">
         <p className="font-semibold mb-1">提示:</p>
         <p>支持任意兼容 OpenAI 协议的接口（如 DeepSeek, Azure OpenAI, LocalAI 等）。请确保接口地址正确。</p>
       </div>
