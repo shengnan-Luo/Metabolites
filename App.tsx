@@ -164,7 +164,7 @@ function App() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-slate-800">布布 AI</h1>
-            <p className="text-xs text-slate-500">批量化合物智能查询系统</p>
+            <p className="text-xs text-slate-500">一二的批量化合物智能查询系统</p>
           </div>
         </div>
         
