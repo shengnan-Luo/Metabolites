@@ -10,11 +10,13 @@ export interface ApiConfig {
   apiKey: string;
   model: string;
   concurrency: number;
+  minResultLength: number;
 }
 
 export interface QueryItem {
   id: string;
   compound: string;
+  sheetName: string;
   status: RequestStatus;
   result: string | null;
   error?: string;
