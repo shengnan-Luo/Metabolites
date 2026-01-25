@@ -1,36 +1,92 @@
-import React, { useState, useCallback, useRef } from 'react';
-import { FlaskConical, Play, Square, RefreshCw, AlertTriangle } from 'lucide-react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { FlaskConical, Play, Square, RefreshCw } from 'lucide-react';
 import { ConfigPanel } from './components/ConfigPanel';
 import { InputSection } from './components/InputSection';
 import { ResultsTable } from './components/ResultsTable';
 import { ApiConfig, QueryItem, RequestStatus, BatchProgress } from './types';
 import { fetchCompletion } from './services/apiService';
+import * as XLSX from 'xlsx';
 
 const DEFAULT_CONFIG: ApiConfig = {
   endpoint: 'https://x666.me/v1/chat/completions',
   apiKey: '',
   model: 'gemini-3-flash-preview',
   concurrency: 3,
+  minResultLength: 500,
 };
 
-const DEFAULT_PROMPT = `请提供以下化合物的信息：{{compound}}。
-请包含：
-1. IUPAC 名称
-2. 分子式
-3. 摩尔质量
-4. 主要药理作用或工业用途 (简述)
-请用中文回答。`;
+const DEFAULT_PROMPT = `请对化合物详细介绍，包括：编号：25-32（不需要加任何形式的括号[]！！！！！），中文名称（英文名称）、【概述】、【结构特点】、【生物活性】、【医药用途】等内容，要求内容科学、详细。输出要求：【概述】：一段文字200-300字、【结构特点】(1)、（2）、（3）。【生物活性】(1)、（2）、（3）、（4）、（5）。【医药用途】(1)、（2）、（3）、（4）、（5）。特别是对生物活性和医药用途要如实，重点，具体描述！！注意输出格式加【】，例如：【概述】、【结构特点】、【生物活性】、【医药用途】。一定要注意格式，按照要求生成！生物活性和医药用途详细一点！
+化合物：{{compound}}`;
+
+const MANUAL_SHEET_NAME = '手动输入';
+const MAX_RETRIES = 1;
+
+interface ExcelSheetData {
+  name: string;
+  headers: string[];
+  rows: string[][];
+}
 
 function App() {
   const [config, setConfig] = useState<ApiConfig>(DEFAULT_CONFIG);
   const [compoundsText, setCompoundsText] = useState<string>('');
   const [promptTemplate, setPromptTemplate] = useState<string>(DEFAULT_PROMPT);
+  const [inputMode, setInputMode] = useState<'manual' | 'excel'>('manual');
+  const [excelFileName, setExcelFileName] = useState<string>('');
+  const [excelSheets, setExcelSheets] = useState<ExcelSheetData[]>([]);
+  const [sheetPrefix, setSheetPrefix] = useState<string>('***');
+  const [selectedColumn, setSelectedColumn] = useState<string>('化学名称');
+  const [maxRows, setMaxRows] = useState<number>(15);
   
   const [results, setResults] = useState<QueryItem[]>([]);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [progress, setProgress] = useState<BatchProgress>({ total: 0, completed: 0, success: 0, failed: 0 });
   
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  const availableColumns = useMemo(() => {
+    const set = new Set<string>();
+    excelSheets.forEach((sheet) => {
+      sheet.headers.forEach((header) => {
+        if (header) set.add(header);
+      });
+    });
+    return Array.from(set);
+  }, [excelSheets]);
+
+  const matchingSheets = useMemo(() => {
+    if (!sheetPrefix) return excelSheets.map((sheet) => sheet.name);
+    return excelSheets
+      .filter((sheet) => sheet.name.startsWith(sheetPrefix))
+      .map((sheet) => sheet.name);
+  }, [excelSheets, sheetPrefix]);
+
+  useEffect(() => {
+    if (availableColumns.length === 0) return;
+    if (!availableColumns.includes(selectedColumn)) {
+      const fallback = availableColumns.find((col) => col.includes('化学')) || availableColumns[0];
+      setSelectedColumn(fallback);
+    }
+  }, [availableColumns, selectedColumn]);
+
+  const handleExcelUpload = useCallback(async (file: File | null) => {
+    if (!file) {
+      setExcelFileName('');
+      setExcelSheets([]);
+      return;
+    }
+    setExcelFileName(file.name);
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data, { type: 'array' });
+    const sheets: ExcelSheetData[] = workbook.SheetNames.map((name) => {
+      const worksheet = workbook.Sheets[name];
+      const sheetRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as string[][];
+      const headers = sheetRows[0]?.map((cell) => String(cell).trim()) ?? [];
+      const rows = sheetRows.slice(1).map((row) => row.map((cell) => String(cell).trim()));
+      return { name, headers, rows };
+    });
+    setExcelSheets(sheets);
+  }, []);
 
   const startBatch = useCallback(async () => {
     // 1. Validation
@@ -42,56 +98,139 @@ function App() {
       alert('请输入接口地址');
       return;
     }
-    const compounds = compoundsText
-      .split('\n')
-      .map(line => line.trim())
-      .filter(line => line.length > 0);
-
-    if (compounds.length === 0) {
-      alert('请输入至少一个化合物');
-      return;
-    }
     if (!promptTemplate.includes('{{compound}}')) {
       alert('提示词模板中必须包含 {{compound}} 占位符');
       return;
     }
+    if (inputMode === 'excel' && excelSheets.length === 0) {
+      alert('请先上传 Excel 文件');
+      return;
+    }
 
-    // 2. Initialization
+    // 2. Create initial result items
+    let processingItems: QueryItem[] = [];
+    let prefilledItems: QueryItem[] = [];
+
+    if (inputMode === 'manual') {
+      const compounds = compoundsText
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+
+      if (compounds.length === 0) {
+        alert('请输入至少一个化合物');
+        setIsProcessing(false);
+        abortControllerRef.current = null;
+        return;
+      }
+
+      processingItems = compounds.map((c, index) => ({
+        id: `job-${Date.now()}-${index}`,
+        compound: c,
+        sheetName: MANUAL_SHEET_NAME,
+        status: RequestStatus.IDLE,
+        result: null,
+      }));
+    } else {
+      const relevantSheets = matchingSheets.map((name) => excelSheets.find((sheet) => sheet.name === name)).filter(Boolean) as ExcelSheetData[];
+      if (relevantSheets.length === 0) {
+        alert('未找到匹配的 Sheet，请检查前缀');
+        setIsProcessing(false);
+        abortControllerRef.current = null;
+        return;
+      }
+
+      relevantSheets.forEach((sheet) => {
+        const columnIndex = sheet.headers.findIndex((header) => header === selectedColumn);
+        if (columnIndex === -1) {
+          prefilledItems.push({
+            id: `sheet-error-${sheet.name}-${Date.now()}`,
+            compound: selectedColumn,
+            sheetName: sheet.name,
+            status: RequestStatus.ERROR,
+            result: null,
+            error: `未找到列：${selectedColumn}`,
+          });
+          return;
+        }
+
+        const compounds = sheet.rows
+          .map((row) => row[columnIndex]?.trim())
+          .filter((value) => Boolean(value));
+
+        const limitedCompounds = compounds.slice(0, maxRows);
+        const items = limitedCompounds.map((compound, index) => ({
+          id: `job-${sheet.name}-${Date.now()}-${index}`,
+          compound,
+          sheetName: sheet.name,
+          status: RequestStatus.IDLE,
+          result: null,
+        }));
+        processingItems = processingItems.concat(items);
+      });
+
+      if (processingItems.length === 0) {
+        if (prefilledItems.length > 0) {
+          setResults(prefilledItems);
+          setProgress({
+            total: prefilledItems.length,
+            completed: prefilledItems.length,
+            success: 0,
+            failed: prefilledItems.length,
+          });
+        }
+        alert('未能在匹配的 Sheet 中读取到化合物，请检查列名或内容');
+        setIsProcessing(false);
+        abortControllerRef.current = null;
+        return;
+      }
+    }
+
+    // 3. Initialization
     setIsProcessing(true);
     abortControllerRef.current = new AbortController();
-    
-    // Create initial result items
-    const initialItems: QueryItem[] = compounds.map((c, index) => ({
-      id: `job-${Date.now()}-${index}`,
-      compound: c,
-      status: RequestStatus.IDLE,
-      result: null,
-    }));
-    
-    setResults(initialItems);
-    setProgress({ total: initialItems.length, completed: 0, success: 0, failed: 0 });
 
-    // 3. Processing Loop (Sequential for simplicity and rate limit safety, can be parallelized with p-limit if needed)
+    const initialResults = [...prefilledItems, ...processingItems];
+    setResults(initialResults);
+    setProgress({
+      total: initialResults.length,
+      completed: prefilledItems.length,
+      success: 0,
+      failed: prefilledItems.length,
+    });
+
+    // 4. Processing Loop (Sequential for simplicity and rate limit safety, can be parallelized with p-limit if needed)
     const CONCURRENCY = config.concurrency || 1;
     let currentIndex = 0;
     
     const processItem = async (index: number) => {
-      if (index >= initialItems.length) return;
+      if (index >= processingItems.length) return;
       if (abortControllerRef.current?.signal.aborted) return;
 
-      const item = initialItems[index];
+      const item = processingItems[index];
       
       // Update status to pending
-      setResults(prev => prev.map((r, i) => i === index ? { ...r, status: RequestStatus.PENDING } : r));
+      setResults(prev => prev.map((r) => r.id === item.id ? { ...r, status: RequestStatus.PENDING } : r));
 
       const specificPrompt = promptTemplate.replace(/\{\{compound\}\}/g, item.compound);
 
       try {
-        const responseText = await fetchCompletion(config, specificPrompt);
+        let responseText = await fetchCompletion(config, specificPrompt);
+        let retryCount = 0;
+        const countLength = (text: string) => text.replace(/\s+/g, '').length;
+
+        while (
+          countLength(responseText) < config.minResultLength &&
+          retryCount < MAX_RETRIES &&
+          !abortControllerRef.current?.signal.aborted
+        ) {
+          retryCount += 1;
+          responseText = await fetchCompletion(config, specificPrompt);
+        }
         
         if (abortControllerRef.current?.signal.aborted) return;
 
-        setResults(prev => prev.map((r, i) => i === index ? { 
+        setResults(prev => prev.map((r) => r.id === item.id ? { 
           ...r, 
           status: RequestStatus.SUCCESS, 
           result: responseText 
@@ -106,7 +245,7 @@ function App() {
       } catch (error: any) {
         if (abortControllerRef.current?.signal.aborted) return;
 
-        setResults(prev => prev.map((r, i) => i === index ? { 
+        setResults(prev => prev.map((r) => r.id === item.id ? { 
           ...r, 
           status: RequestStatus.ERROR, 
           error: error.message 
@@ -124,7 +263,7 @@ function App() {
     const workers = [];
     // Queue manager
     const queueWorker = async () => {
-        while (currentIndex < initialItems.length) {
+        while (currentIndex < processingItems.length) {
              if (abortControllerRef.current?.signal.aborted) break;
              const indexToProcess = currentIndex++;
              await processItem(indexToProcess);
@@ -140,7 +279,16 @@ function App() {
     setIsProcessing(false);
     abortControllerRef.current = null;
 
-  }, [config, compoundsText, promptTemplate]);
+  }, [
+    config,
+    compoundsText,
+    excelSheets,
+    inputMode,
+    matchingSheets,
+    maxRows,
+    promptTemplate,
+    selectedColumn,
+  ]);
 
   const stopBatch = useCallback(() => {
     if (abortControllerRef.current) {
@@ -153,6 +301,11 @@ function App() {
     setResults([]);
     setProgress({ total: 0, completed: 0, success: 0, failed: 0 });
   }, []);
+
+  const canStart = Boolean(
+    config.apiKey &&
+    (inputMode === 'manual' ? compoundsText.trim() : excelSheets.length > 0)
+  );
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-50">
@@ -186,9 +339,9 @@ function App() {
             {!isProcessing ? (
             <button
                 onClick={startBatch}
-                disabled={!compoundsText.trim() || !config.apiKey}
+                disabled={!canStart}
                 className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-white font-medium transition-all shadow-md 
-                ${!compoundsText.trim() || !config.apiKey 
+                ${!canStart 
                     ? 'bg-gray-400 cursor-not-allowed opacity-70' 
                     : 'bg-accent hover:bg-blue-600 hover:shadow-lg active:scale-95'}`}
             >
@@ -221,10 +374,22 @@ function App() {
           </div>
           <div className="lg:col-span-9 h-[450px] lg:h-full">
             <InputSection 
+              inputMode={inputMode}
+              setInputMode={setInputMode}
               compoundsText={compoundsText} 
               setCompoundsText={setCompoundsText}
               promptTemplate={promptTemplate}
               setPromptTemplate={setPromptTemplate}
+              excelFileName={excelFileName}
+              onExcelUpload={handleExcelUpload}
+              sheetPrefix={sheetPrefix}
+              setSheetPrefix={setSheetPrefix}
+              columnOptions={availableColumns}
+              selectedColumn={selectedColumn}
+              setSelectedColumn={setSelectedColumn}
+              maxRows={maxRows}
+              setMaxRows={setMaxRows}
+              matchingSheets={matchingSheets}
               disabled={isProcessing}
             />
           </div>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, Key, Server, Cpu, Zap } from 'lucide-react';
+import { Settings, Key, Server, Cpu, Zap, FileText } from 'lucide-react';
 import { ApiConfig } from '../types';
 
 interface ConfigPanelProps {
@@ -82,6 +82,23 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({ config, onConfigChange
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-accent focus:border-transparent outline-none text-sm transition-all"
           />
           <p className="text-xs text-gray-400 mt-1">同时进行的请求数量 (建议 1-10)</p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-600 mb-1 flex items-center gap-2">
+            <FileText className="w-4 h-4" />
+            最少字数 (自动重试阈值)
+          </label>
+          <input
+            type="number"
+            min="100"
+            max="5000"
+            value={config.minResultLength}
+            onChange={(e) => handleChange('minResultLength', Math.max(100, parseInt(e.target.value) || 100))}
+            disabled={disabled}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-accent focus:border-transparent outline-none text-sm transition-all"
+          />
+          <p className="text-xs text-gray-400 mt-1">若回答字数不足该值，将自动再生成一次</p>
         </div>
       </div>
 
