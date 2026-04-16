@@ -19,6 +19,8 @@ export interface QueryItem {
   sheetName: string;
   status: RequestStatus;
   result: string | null;
+  isBeneficial: '是' | '否' | null;
+  beneficialDirection: string | null;
   error?: string;
 }
 

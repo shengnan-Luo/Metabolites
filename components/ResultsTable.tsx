@@ -16,12 +16,14 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
   const downloadCSV = (items: QueryItem[], sheetName: string) => {
     if (items.length === 0) return;
 
-    const headers = ['ID', 'Sheet', 'Compound', 'Status', 'Result', 'Error'];
+    const headers = ['ID', 'Sheet', 'Compound', 'Status', 'IsBeneficial', 'BeneficialDirection', 'Result', 'Error'];
     const rows = items.map(r => [
       r.id,
       escapeCsv(r.sheetName),
       escapeCsv(r.compound),
       r.status,
+      escapeCsv(r.isBeneficial || ''),
+      escapeCsv(r.beneficialDirection || ''),
       escapeCsv(r.result),
       escapeCsv(r.error || '')
     ].join(','));
@@ -84,6 +86,8 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                   <th className="px-6 py-3 w-16">#</th>
                   <th className="px-6 py-3 w-48">化合物</th>
                   <th className="px-6 py-3 w-32">状态</th>
+                  <th className="px-6 py-3 w-28">有益代谢物</th>
+                  <th className="px-6 py-3 w-72">有益方向（结肠炎）</th>
                   <th className="px-6 py-3">AI 响应结果</th>
                 </tr>
               </thead>
@@ -111,6 +115,14 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                       {item.status === RequestStatus.IDLE && (
                         <span className="text-gray-400 text-xs">等待中</span>
                       )}
+                    </td>
+                    <td className="px-6 py-4 text-slate-600">
+                      {item.status === RequestStatus.SUCCESS ? (item.isBeneficial || '-') : '-'}
+                    </td>
+                    <td className="px-6 py-4 text-slate-600">
+                      <div className="whitespace-pre-wrap max-h-40 overflow-y-auto custom-scrollbar">
+                        {item.status === RequestStatus.SUCCESS ? (item.beneficialDirection || '-') : '-'}
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-slate-600 relative group">
                       {item.status === RequestStatus.ERROR ? (
