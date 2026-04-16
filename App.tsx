@@ -17,6 +17,14 @@ const DEFAULT_CONFIG: ApiConfig = {
 
 const DEFAULT_PROMPT = `请对化合物详细介绍，包括：编号：25-32（不需要加任何形式的括号[]！！！！！），中文名称（英文名称）、【概述】、【结构特点】、【生物活性】、【医药用途】等内容，要求内容科学、详细。输出要求：【概述】：一段文字200-300字、【结构特点】(1)、（2）、（3）。【生物活性】(1)、（2）、（3）、（4）、（5）。【医药用途】(1)、（2）、（3）、（4）、（5）。特别是对生物活性和医药用途要如实，重点，具体描述！！注意输出格式加【】，例如：【概述】、【结构特点】、【生物活性】、【医药用途】。一定要注意格式，按照要求生成！生物活性和医药用途详细一点！
 化合物：{{compound}}`;
+const BENEFIT_PROMPT_TEMPLATE = `请判断下述化合物是否属于有益代谢物，并给出方向，疾病范围仅针对结肠炎（colitis）。
+化合物：{{compound}}
+
+输出要求：
+1) 只输出 JSON，不要输出其他文字。
+2) JSON 格式必须为：
+{"isBeneficial":"是或否","beneficialDirection":"一句话，说明具体有益方向；若无明确证据则写“暂无明确证据支持其对结肠炎有益”"}
+3) 判断标准可参考：抗炎、抗氧化、屏障保护、免疫调节、已报道对结肠炎有作用等。`;
 
 const MANUAL_SHEET_NAME = '手动输入';
 const MAX_RETRIES = 1;
@@ -26,6 +34,35 @@ interface ExcelSheetData {
   headers: string[];
   rows: string[][];
 }
+
+interface BenefitInfo {
+  isBeneficial: '是' | '否';
+  beneficialDirection: string;
+}
+
+const parseBenefitInfo = (text: string): BenefitInfo => {
+  const fallback: BenefitInfo = {
+    isBeneficial: '否',
+    beneficialDirection: '暂无明确证据支持其对结肠炎有益',
+  };
+
+  try {
+    const match = text.match(/\{[\s\S]*\}/);
+    const jsonText = match ? match[0] : text;
+    const parsed = JSON.parse(jsonText);
+    const isBeneficial = parsed?.isBeneficial === '是' ? '是' : '否';
+    const beneficialDirection = String(parsed?.beneficialDirection || '').trim() || fallback.beneficialDirection;
+    return { isBeneficial, beneficialDirection };
+  } catch {
+    const normalized = text.replace(/\s+/g, ' ').trim();
+    if (!normalized) return fallback;
+    const isBeneficial = /(^|[:：\s])是($|[，,。；;\s])/.test(normalized) ? '是' : '否';
+    return {
+      isBeneficial,
+      beneficialDirection: normalized.slice(0, 180),
+    };
+  }
+};
 
 function App() {
   const [config, setConfig] = useState<ApiConfig>(DEFAULT_CONFIG);
@@ -130,6 +167,8 @@ function App() {
         sheetName: MANUAL_SHEET_NAME,
         status: RequestStatus.IDLE,
         result: null,
+        isBeneficial: null,
+        beneficialDirection: null,
       }));
     } else {
       const relevantSheets = matchingSheets.map((name) => excelSheets.find((sheet) => sheet.name === name)).filter(Boolean) as ExcelSheetData[];
@@ -149,6 +188,8 @@ function App() {
             sheetName: sheet.name,
             status: RequestStatus.ERROR,
             result: null,
+            isBeneficial: null,
+            beneficialDirection: null,
             error: `未找到列：${selectedColumn}`,
           });
           return;
@@ -165,6 +206,8 @@ function App() {
           sheetName: sheet.name,
           status: RequestStatus.IDLE,
           result: null,
+          isBeneficial: null,
+          beneficialDirection: null,
         }));
         processingItems = processingItems.concat(items);
       });
@@ -213,27 +256,41 @@ function App() {
       setResults(prev => prev.map((r) => r.id === item.id ? { ...r, status: RequestStatus.PENDING } : r));
 
       const specificPrompt = promptTemplate.replace(/\{\{compound\}\}/g, item.compound);
+      const benefitPrompt = BENEFIT_PROMPT_TEMPLATE.replace(/\{\{compound\}\}/g, item.compound);
 
       try {
-        let responseText = await fetchCompletion(config, specificPrompt);
+        let responseText = '';
         let retryCount = 0;
         const countLength = (text: string) => text.replace(/\s+/g, '').length;
 
-        while (
-          countLength(responseText) < config.minResultLength &&
-          retryCount < MAX_RETRIES &&
-          !abortControllerRef.current?.signal.aborted
-        ) {
-          retryCount += 1;
-          responseText = await fetchCompletion(config, specificPrompt);
-        }
+        const mainRequestTask = async () => {
+          let currentResponse = await fetchCompletion(config, specificPrompt);
+          while (
+            countLength(currentResponse) < config.minResultLength &&
+            retryCount < MAX_RETRIES &&
+            !abortControllerRef.current?.signal.aborted
+          ) {
+            retryCount += 1;
+            currentResponse = await fetchCompletion(config, specificPrompt);
+          }
+          return currentResponse;
+        };
+
+        const [mainResponse, benefitResponse] = await Promise.all([
+          mainRequestTask(),
+          fetchCompletion(config, benefitPrompt),
+        ]);
+        responseText = mainResponse;
+        const benefitInfo = parseBenefitInfo(benefitResponse);
         
         if (abortControllerRef.current?.signal.aborted) return;
 
         setResults(prev => prev.map((r) => r.id === item.id ? { 
           ...r, 
           status: RequestStatus.SUCCESS, 
-          result: responseText 
+          result: responseText,
+          isBeneficial: benefitInfo.isBeneficial,
+          beneficialDirection: benefitInfo.beneficialDirection,
         } : r));
 
         setProgress(prev => ({ 
