@@ -31,10 +31,10 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({ config, onConfigChange
             value={config.endpoint}
             onChange={(e) => handleChange('endpoint', e.target.value)}
             disabled={disabled}
-            placeholder="e.g., https://api.openai.com/v1/chat/completions"
+            placeholder="e.g., https://api.openai.com/v1/chat/completions 或 /v1/responses"
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-accent focus:border-transparent outline-none text-sm transition-all"
           />
-          <p className="text-xs text-gray-400 mt-1">需包含完整路径，如 /v1/chat/completions</p>
+          <p className="text-xs text-gray-400 mt-1">需包含完整路径，如 /v1/chat/completions 或 /v1/responses</p>
         </div>
 
         <div>
