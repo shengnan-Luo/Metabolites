@@ -6,8 +6,14 @@ interface InputSectionProps {
   setInputMode: (mode: 'manual' | 'excel') => void;
   compoundsText: string;
   setCompoundsText: (text: string) => void;
+  enableQueryPrompt: boolean;
+  setEnableQueryPrompt: (enabled: boolean) => void;
   promptTemplate: string;
   setPromptTemplate: (text: string) => void;
+  enableBenefitCheck: boolean;
+  setEnableBenefitCheck: (enabled: boolean) => void;
+  benefitPromptTemplate: string;
+  setBenefitPromptTemplate: (text: string) => void;
   excelFileName: string;
   onExcelUpload: (file: File | null) => void;
   sheetPrefix: string;
@@ -26,8 +32,14 @@ export const InputSection: React.FC<InputSectionProps> = ({
   setInputMode,
   compoundsText,
   setCompoundsText,
+  enableQueryPrompt,
+  setEnableQueryPrompt,
   promptTemplate,
   setPromptTemplate,
+  enableBenefitCheck,
+  setEnableBenefitCheck,
+  benefitPromptTemplate,
+  setBenefitPromptTemplate,
   excelFileName,
   onExcelUpload,
   sheetPrefix,
@@ -160,25 +172,61 @@ export const InputSection: React.FC<InputSectionProps> = ({
       </div>
 
       {/* Prompt Template Input */}
-      <div className="flex flex-col h-full bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-        <div className="flex items-center justify-between mb-3">
-          <label className="flex items-center gap-2 font-semibold text-slate-700">
-            <MessageSquare className="w-4 h-4 text-accent" />
-            查询提示词模板
-          </label>
-          <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-100">
-            使用 {"{{compound}}"} 作为占位符
-          </span>
+      <div className="flex flex-col h-full bg-white p-6 rounded-xl shadow-sm border border-gray-200 gap-4 overflow-y-auto">
+        <div className="border border-gray-200 rounded-lg p-4 bg-slate-50">
+          <div className="flex items-center justify-between mb-3">
+            <label className="flex items-center gap-2 font-semibold text-slate-700">
+              <MessageSquare className="w-4 h-4 text-accent" />
+              查询（DEFAULT_PROMPT）
+            </label>
+            <label className="inline-flex items-center gap-2 text-sm text-slate-600">
+              <input
+                type="checkbox"
+                checked={enableQueryPrompt}
+                onChange={(e) => setEnableQueryPrompt(e.target.checked)}
+                disabled={disabled}
+              />
+              开启
+            </label>
+          </div>
+          <textarea
+            value={promptTemplate}
+            onChange={(e) => setPromptTemplate(e.target.value)}
+            disabled={disabled || !enableQueryPrompt}
+            placeholder="请输入查询提示词，需包含 {{compound}}。"
+            className="h-40 w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent outline-none resize-none text-sm leading-relaxed disabled:bg-gray-100"
+          />
+          <div className="mt-2 text-xs text-gray-500">
+            开启后将执行查询，并自动替换 <code>{"{{compound}}"}</code>。
+          </div>
         </div>
-        <textarea
-          value={promptTemplate}
-          onChange={(e) => setPromptTemplate(e.target.value)}
-          disabled={disabled}
-          placeholder="请输入针对 AI 的提示词。&#10;例如：&#10;请告诉我 {{compound}} 的分子式、摩尔质量和主要用途。请用简洁的中文回答。"
-          className="flex-1 w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent outline-none resize-none text-sm leading-relaxed"
-        />
-        <div className="mt-2 text-xs text-gray-500">
-          系统会自动将 <code>{"{{compound}}"}</code> 替换为左侧列表中的每一项。
+
+        <div className="border border-gray-200 rounded-lg p-4 bg-slate-50">
+          <div className="flex items-center justify-between mb-3">
+            <label className="flex items-center gap-2 font-semibold text-slate-700">
+              <MessageSquare className="w-4 h-4 text-accent" />
+              有益化合物判断（BENEFIT_PROMPT_TEMPLATE）
+            </label>
+            <label className="inline-flex items-center gap-2 text-sm text-slate-600">
+              <input
+                type="checkbox"
+                checked={enableBenefitCheck}
+                onChange={(e) => setEnableBenefitCheck(e.target.checked)}
+                disabled={disabled}
+              />
+              开启
+            </label>
+          </div>
+          <textarea
+            value={benefitPromptTemplate}
+            onChange={(e) => setBenefitPromptTemplate(e.target.value)}
+            disabled={disabled || !enableBenefitCheck}
+            placeholder="请输入判断提示词，需包含 {{compound}}。默认仅判断抗炎活性。"
+            className="h-40 w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent outline-none resize-none text-sm leading-relaxed disabled:bg-gray-100"
+          />
+          <div className="mt-2 text-xs text-gray-500">
+            可自定义判断逻辑；默认提示词仅判断是否具有抗炎活性。
+          </div>
         </div>
       </div>
     </div>

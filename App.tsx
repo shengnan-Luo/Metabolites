@@ -17,14 +17,13 @@ const DEFAULT_CONFIG: ApiConfig = {
 
 const DEFAULT_PROMPT = `请对化合物详细介绍，包括：编号：25-32（不需要加任何形式的括号[]！！！！！），中文名称（英文名称）、【概述】、【结构特点】、【生物活性】、【医药用途】等内容，要求内容科学、详细。输出要求：【概述】：一段文字200-300字、【结构特点】(1)、（2）、（3）。【生物活性】(1)、（2）、（3）、（4）、（5）。【医药用途】(1)、（2）、（3）、（4）、（5）。特别是对生物活性和医药用途要如实，重点，具体描述！！注意输出格式加【】，例如：【概述】、【结构特点】、【生物活性】、【医药用途】。一定要注意格式，按照要求生成！生物活性和医药用途详细一点！
 化合物：{{compound}}`;
-const BENEFIT_PROMPT_TEMPLATE = `请判断下述化合物是否属于有益代谢物，并给出方向，疾病范围仅针对结肠炎（colitis）。
+const DEFAULT_BENEFIT_PROMPT_TEMPLATE = `请判断下述化合物是否具有抗炎活性，并给出一句话结论。
 化合物：{{compound}}
 
 输出要求：
 1) 只输出 JSON，不要输出其他文字。
 2) JSON 格式必须为：
-{"isBeneficial":"是或否","beneficialDirection":"一句话，说明具体有益方向；若无明确证据则写“暂无明确证据支持其对结肠炎有益”"}
-3) 判断标准可参考：抗炎、抗氧化、屏障保护、免疫调节、已报道对结肠炎有作用等。`;
+{"isBeneficial":"是或否","beneficialDirection":"一句话，说明是否具有抗炎活性；若无明确证据则写“暂无明确证据支持其具有抗炎活性”"}`;
 
 const MANUAL_SHEET_NAME = '手动输入';
 const MAX_RETRIES = 1;
@@ -43,7 +42,7 @@ interface BenefitInfo {
 const parseBenefitInfo = (text: string): BenefitInfo => {
   const fallback: BenefitInfo = {
     isBeneficial: '否',
-    beneficialDirection: '暂无明确证据支持其对结肠炎有益',
+    beneficialDirection: '暂无明确证据支持其具有抗炎活性',
   };
 
   try {
@@ -67,7 +66,10 @@ const parseBenefitInfo = (text: string): BenefitInfo => {
 function App() {
   const [config, setConfig] = useState<ApiConfig>(DEFAULT_CONFIG);
   const [compoundsText, setCompoundsText] = useState<string>('');
+  const [enableQueryPrompt, setEnableQueryPrompt] = useState<boolean>(true);
   const [promptTemplate, setPromptTemplate] = useState<string>(DEFAULT_PROMPT);
+  const [enableBenefitCheck, setEnableBenefitCheck] = useState<boolean>(true);
+  const [benefitPromptTemplate, setBenefitPromptTemplate] = useState<string>(DEFAULT_BENEFIT_PROMPT_TEMPLATE);
   const [inputMode, setInputMode] = useState<'manual' | 'excel'>('manual');
   const [excelFileName, setExcelFileName] = useState<string>('');
   const [excelSheets, setExcelSheets] = useState<ExcelSheetData[]>([]);
@@ -135,8 +137,16 @@ function App() {
       alert('请输入接口地址');
       return;
     }
-    if (!promptTemplate.includes('{{compound}}')) {
+    if (!enableQueryPrompt && !enableBenefitCheck) {
+      alert('请至少开启一个功能：查询提示词 或 有益化合物判断');
+      return;
+    }
+    if (enableQueryPrompt && !promptTemplate.includes('{{compound}}')) {
       alert('提示词模板中必须包含 {{compound}} 占位符');
+      return;
+    }
+    if (enableBenefitCheck && !benefitPromptTemplate.includes('{{compound}}')) {
+      alert('有益化合物判断提示词中必须包含 {{compound}} 占位符');
       return;
     }
     if (inputMode === 'excel' && excelSheets.length === 0) {
@@ -256,7 +266,7 @@ function App() {
       setResults(prev => prev.map((r) => r.id === item.id ? { ...r, status: RequestStatus.PENDING } : r));
 
       const specificPrompt = promptTemplate.replace(/\{\{compound\}\}/g, item.compound);
-      const benefitPrompt = BENEFIT_PROMPT_TEMPLATE.replace(/\{\{compound\}\}/g, item.compound);
+      const benefitPrompt = benefitPromptTemplate.replace(/\{\{compound\}\}/g, item.compound);
 
       try {
         let responseText = '';
@@ -277,20 +287,20 @@ function App() {
         };
 
         const [mainResponse, benefitResponse] = await Promise.all([
-          mainRequestTask(),
-          fetchCompletion(config, benefitPrompt),
+          enableQueryPrompt ? mainRequestTask() : Promise.resolve<string | null>(null),
+          enableBenefitCheck ? fetchCompletion(config, benefitPrompt) : Promise.resolve<string | null>(null),
         ]);
-        responseText = mainResponse;
-        const benefitInfo = parseBenefitInfo(benefitResponse);
+        responseText = mainResponse || '';
+        const benefitInfo = benefitResponse ? parseBenefitInfo(benefitResponse) : null;
         
         if (abortControllerRef.current?.signal.aborted) return;
 
         setResults(prev => prev.map((r) => r.id === item.id ? { 
           ...r, 
           status: RequestStatus.SUCCESS, 
-          result: responseText,
-          isBeneficial: benefitInfo.isBeneficial,
-          beneficialDirection: benefitInfo.beneficialDirection,
+          result: enableQueryPrompt ? responseText : null,
+          isBeneficial: enableBenefitCheck ? benefitInfo?.isBeneficial || '否' : null,
+          beneficialDirection: enableBenefitCheck ? benefitInfo?.beneficialDirection || null : null,
         } : r));
 
         setProgress(prev => ({ 
@@ -343,6 +353,9 @@ function App() {
     inputMode,
     matchingSheets,
     maxRows,
+    enableBenefitCheck,
+    benefitPromptTemplate,
+    enableQueryPrompt,
     promptTemplate,
     selectedColumn,
   ]);
@@ -435,8 +448,14 @@ function App() {
               setInputMode={setInputMode}
               compoundsText={compoundsText} 
               setCompoundsText={setCompoundsText}
+              enableQueryPrompt={enableQueryPrompt}
+              setEnableQueryPrompt={setEnableQueryPrompt}
               promptTemplate={promptTemplate}
               setPromptTemplate={setPromptTemplate}
+              enableBenefitCheck={enableBenefitCheck}
+              setEnableBenefitCheck={setEnableBenefitCheck}
+              benefitPromptTemplate={benefitPromptTemplate}
+              setBenefitPromptTemplate={setBenefitPromptTemplate}
               excelFileName={excelFileName}
               onExcelUpload={handleExcelUpload}
               sheetPrefix={sheetPrefix}
