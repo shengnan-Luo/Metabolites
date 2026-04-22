@@ -14,6 +14,8 @@ interface InputSectionProps {
   setEnableBenefitCheck: (enabled: boolean) => void;
   benefitPromptTemplate: string;
   setBenefitPromptTemplate: (text: string) => void;
+  benefitApiConfigsText: string;
+  setBenefitApiConfigsText: (text: string) => void;
   excelFileName: string;
   onExcelUpload: (file: File | null) => void;
   sheetPrefix: string;
@@ -40,6 +42,8 @@ export const InputSection: React.FC<InputSectionProps> = ({
   setEnableBenefitCheck,
   benefitPromptTemplate,
   setBenefitPromptTemplate,
+  benefitApiConfigsText,
+  setBenefitApiConfigsText,
   excelFileName,
   onExcelUpload,
   sheetPrefix,
@@ -226,6 +230,21 @@ export const InputSection: React.FC<InputSectionProps> = ({
           />
           <div className="mt-2 text-xs text-gray-500">
             可自定义判断逻辑；默认提示词仅判断是否具有抗炎活性。
+          </div>
+          <div className="mt-3">
+            <label className="block text-xs font-medium text-slate-600 mb-1">
+              多模型 API 配置（JSON 数组，至少两套）
+            </label>
+            <textarea
+              value={benefitApiConfigsText}
+              onChange={(e) => setBenefitApiConfigsText(e.target.value)}
+              disabled={disabled || !enableBenefitCheck}
+              placeholder='[{"name":"模型A","endpoint":"...","apiKey":"...","model":"..."},{"name":"模型B","endpoint":"...","apiKey":"...","model":"..."}]'
+              className="h-40 w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent outline-none resize-none text-xs font-mono leading-relaxed disabled:bg-gray-100"
+            />
+            <div className="mt-1 text-xs text-gray-500">
+              每套配置独立调用并汇总结果；最终会新增“多模型一致性”列。
+            </div>
           </div>
         </div>
       </div>
