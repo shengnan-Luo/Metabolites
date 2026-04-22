@@ -6,10 +6,6 @@ interface InputSectionProps {
   setInputMode: (mode: 'manual' | 'excel') => void;
   compoundsText: string;
   setCompoundsText: (text: string) => void;
-  enableQueryPrompt: boolean;
-  setEnableQueryPrompt: (enabled: boolean) => void;
-  promptTemplate: string;
-  setPromptTemplate: (text: string) => void;
   enableBenefitCheck: boolean;
   setEnableBenefitCheck: (enabled: boolean) => void;
   benefitPromptTemplate: string;
@@ -32,10 +28,6 @@ export const InputSection: React.FC<InputSectionProps> = ({
   setInputMode,
   compoundsText,
   setCompoundsText,
-  enableQueryPrompt,
-  setEnableQueryPrompt,
-  promptTemplate,
-  setPromptTemplate,
   enableBenefitCheck,
   setEnableBenefitCheck,
   benefitPromptTemplate,
@@ -173,34 +165,6 @@ export const InputSection: React.FC<InputSectionProps> = ({
 
       {/* Prompt Template Input */}
       <div className="flex flex-col h-full bg-white p-6 rounded-xl shadow-sm border border-gray-200 gap-4 overflow-y-auto">
-        <div className="border border-gray-200 rounded-lg p-4 bg-slate-50">
-          <div className="flex items-center justify-between mb-3">
-            <label className="flex items-center gap-2 font-semibold text-slate-700">
-              <MessageSquare className="w-4 h-4 text-accent" />
-              查询（DEFAULT_PROMPT）
-            </label>
-            <label className="inline-flex items-center gap-2 text-sm text-slate-600">
-              <input
-                type="checkbox"
-                checked={enableQueryPrompt}
-                onChange={(e) => setEnableQueryPrompt(e.target.checked)}
-                disabled={disabled}
-              />
-              开启
-            </label>
-          </div>
-          <textarea
-            value={promptTemplate}
-            onChange={(e) => setPromptTemplate(e.target.value)}
-            disabled={disabled || !enableQueryPrompt}
-            placeholder="请输入查询提示词，需包含 {{compound}}。"
-            className="h-40 w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent outline-none resize-none text-sm leading-relaxed disabled:bg-gray-100"
-          />
-          <div className="mt-2 text-xs text-gray-500">
-            开启后将执行查询，并自动替换 <code>{"{{compound}}"}</code>。
-          </div>
-        </div>
-
         <div className="border border-gray-200 rounded-lg p-4 bg-slate-50">
           <div className="flex items-center justify-between mb-3">
             <label className="flex items-center gap-2 font-semibold text-slate-700">

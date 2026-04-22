@@ -5,10 +5,18 @@ import { ApiConfig } from '../types';
 interface ConfigPanelProps {
   config: ApiConfig;
   onConfigChange: (newConfig: ApiConfig) => void;
+  benefitApiConfigsText: string;
+  onBenefitApiConfigsTextChange: (value: string) => void;
   disabled: boolean;
 }
 
-export const ConfigPanel: React.FC<ConfigPanelProps> = ({ config, onConfigChange, disabled }) => {
+export const ConfigPanel: React.FC<ConfigPanelProps> = ({
+  config,
+  onConfigChange,
+  benefitApiConfigsText,
+  onBenefitApiConfigsTextChange,
+  disabled,
+}) => {
   const handleChange = (field: keyof ApiConfig, value: string | number) => {
     onConfigChange({ ...config, [field]: value });
   };
@@ -99,6 +107,21 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({ config, onConfigChange
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-accent focus:border-transparent outline-none text-sm transition-all"
           />
           <p className="text-xs text-gray-400 mt-1">若回答字数不足该值，将自动再生成一次</p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-600 mb-1 flex items-center gap-2">
+            <FileText className="w-4 h-4" />
+            多模型 API 配置（有益化合物判断）
+          </label>
+          <textarea
+            value={benefitApiConfigsText}
+            onChange={(e) => onBenefitApiConfigsTextChange(e.target.value)}
+            disabled={disabled}
+            placeholder='[{"name":"模型A","endpoint":"...","apiKey":"...","model":"..."},{"name":"模型B","endpoint":"...","apiKey":"...","model":"..."}]'
+            className="w-full h-40 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-accent focus:border-transparent outline-none text-xs font-mono transition-all resize-y"
+          />
+          <p className="text-xs text-gray-400 mt-1">每套配置独立调用并汇总结果；最终会新增“多模型一致性”列。</p>
         </div>
       </div>
 

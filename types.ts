@@ -21,6 +21,8 @@ export interface QueryItem {
   result: string | null;
   isBeneficial: '是' | '否' | null;
   beneficialDirection: string | null;
+  benefitModelSummary: string | null;
+  benefitConsensus: '一致' | '不一致' | '部分失败' | null;
   error?: string;
 }
 

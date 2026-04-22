@@ -39,6 +39,28 @@ interface BenefitInfo {
   beneficialDirection: string;
 }
 
+interface BenefitApiConfigInput {
+  name: string;
+  endpoint: string;
+  apiKey: string;
+  model: string;
+}
+
+const DEFAULT_BENEFIT_CONFIGS_TEXT = `[
+  {
+    "name": "模型A",
+    "endpoint": "https://api.openai.com/v1/chat/completions",
+    "apiKey": "",
+    "model": "gpt-4o-mini"
+  },
+  {
+    "name": "模型B",
+    "endpoint": "https://api.openai.com/v1/chat/completions",
+    "apiKey": "",
+    "model": "gpt-4.1-mini"
+  }
+]`;
+
 const parseBenefitInfo = (text: string): BenefitInfo => {
   const fallback: BenefitInfo = {
     isBeneficial: '否',
@@ -63,13 +85,36 @@ const parseBenefitInfo = (text: string): BenefitInfo => {
   }
 };
 
+const parseBenefitConfigs = (text: string): BenefitApiConfigInput[] => {
+  const parsed = JSON.parse(text);
+  if (!Array.isArray(parsed)) {
+    throw new Error('有益化合物多模型配置必须是 JSON 数组');
+  }
+
+  const normalized = parsed.map((item, index) => {
+    const name = String(item?.name || '').trim() || `模型${index + 1}`;
+    const endpoint = String(item?.endpoint || '').trim();
+    const apiKey = String(item?.apiKey || '').trim();
+    const model = String(item?.model || '').trim();
+    if (!endpoint || !apiKey || !model) {
+      throw new Error(`第 ${index + 1} 个模型配置缺少 endpoint / apiKey / model`);
+    }
+    return { name, endpoint, apiKey, model };
+  });
+
+  if (normalized.length < 2) {
+    throw new Error('请至少提供 2 套模型配置，用于判断是否一致');
+  }
+
+  return normalized;
+};
+
 function App() {
   const [config, setConfig] = useState<ApiConfig>(DEFAULT_CONFIG);
   const [compoundsText, setCompoundsText] = useState<string>('');
-  const [enableQueryPrompt, setEnableQueryPrompt] = useState<boolean>(true);
-  const [promptTemplate, setPromptTemplate] = useState<string>(DEFAULT_PROMPT);
   const [enableBenefitCheck, setEnableBenefitCheck] = useState<boolean>(true);
   const [benefitPromptTemplate, setBenefitPromptTemplate] = useState<string>(DEFAULT_BENEFIT_PROMPT_TEMPLATE);
+  const [benefitApiConfigsText, setBenefitApiConfigsText] = useState<string>(DEFAULT_BENEFIT_CONFIGS_TEXT);
   const [inputMode, setInputMode] = useState<'manual' | 'excel'>('manual');
   const [excelFileName, setExcelFileName] = useState<string>('');
   const [excelSheets, setExcelSheets] = useState<ExcelSheetData[]>([]);
@@ -129,25 +174,22 @@ function App() {
 
   const startBatch = useCallback(async () => {
     // 1. Validation
-    if (!config.apiKey) {
-      alert('请输入 API 密钥');
-      return;
-    }
-    if (!config.endpoint) {
-      alert('请输入接口地址');
-      return;
-    }
-    if (!enableQueryPrompt && !enableBenefitCheck) {
-      alert('请至少开启一个功能：查询提示词 或 有益化合物判断');
-      return;
-    }
-    if (enableQueryPrompt && !promptTemplate.includes('{{compound}}')) {
-      alert('提示词模板中必须包含 {{compound}} 占位符');
+    if (!enableBenefitCheck) {
+      alert('查询功能已关闭，请开启“有益化合物判断”');
       return;
     }
     if (enableBenefitCheck && !benefitPromptTemplate.includes('{{compound}}')) {
       alert('有益化合物判断提示词中必须包含 {{compound}} 占位符');
       return;
+    }
+    let benefitConfigs: BenefitApiConfigInput[] = [];
+    if (enableBenefitCheck) {
+      try {
+        benefitConfigs = parseBenefitConfigs(benefitApiConfigsText);
+      } catch (error: any) {
+        alert(`有益化合物多模型配置有误：${error.message}`);
+        return;
+      }
     }
     if (inputMode === 'excel' && excelSheets.length === 0) {
       alert('请先上传 Excel 文件');
@@ -179,6 +221,8 @@ function App() {
         result: null,
         isBeneficial: null,
         beneficialDirection: null,
+        benefitModelSummary: null,
+        benefitConsensus: null,
       }));
     } else {
       const relevantSheets = matchingSheets.map((name) => excelSheets.find((sheet) => sheet.name === name)).filter(Boolean) as ExcelSheetData[];
@@ -200,6 +244,8 @@ function App() {
             result: null,
             isBeneficial: null,
             beneficialDirection: null,
+            benefitModelSummary: null,
+            benefitConsensus: null,
             error: `未找到列：${selectedColumn}`,
           });
           return;
@@ -218,6 +264,8 @@ function App() {
           result: null,
           isBeneficial: null,
           beneficialDirection: null,
+          benefitModelSummary: null,
+          benefitConsensus: null,
         }));
         processingItems = processingItems.concat(items);
       });
@@ -265,42 +313,60 @@ function App() {
       // Update status to pending
       setResults(prev => prev.map((r) => r.id === item.id ? { ...r, status: RequestStatus.PENDING } : r));
 
-      const specificPrompt = promptTemplate.replace(/\{\{compound\}\}/g, item.compound);
       const benefitPrompt = benefitPromptTemplate.replace(/\{\{compound\}\}/g, item.compound);
 
       try {
-        let responseText = '';
-        let retryCount = 0;
-        const countLength = (text: string) => text.replace(/\s+/g, '').length;
-
-        const mainRequestTask = async () => {
-          let currentResponse = await fetchCompletion(config, specificPrompt);
-          while (
-            countLength(currentResponse) < config.minResultLength &&
-            retryCount < MAX_RETRIES &&
-            !abortControllerRef.current?.signal.aborted
-          ) {
-            retryCount += 1;
-            currentResponse = await fetchCompletion(config, specificPrompt);
+        const benefitResponses = await Promise.allSettled(
+          benefitConfigs.map((benefitConfig) =>
+            fetchCompletion(
+              {
+                ...config,
+                endpoint: benefitConfig.endpoint,
+                apiKey: benefitConfig.apiKey,
+                model: benefitConfig.model,
+              },
+              benefitPrompt
+            )
+          )
+        );
+        const parsedBenefitInfos = benefitResponses.map((result, index) => {
+          if (result.status === 'fulfilled') {
+            return {
+              name: benefitConfigs[index].name,
+              info: parseBenefitInfo(result.value),
+              error: null,
+            };
           }
-          return currentResponse;
-        };
-
-        const [mainResponse, benefitResponse] = await Promise.all([
-          enableQueryPrompt ? mainRequestTask() : Promise.resolve<string | null>(null),
-          enableBenefitCheck ? fetchCompletion(config, benefitPrompt) : Promise.resolve<string | null>(null),
-        ]);
-        responseText = mainResponse || '';
-        const benefitInfo = benefitResponse ? parseBenefitInfo(benefitResponse) : null;
+          return {
+            name: benefitConfigs[index].name,
+            info: null,
+            error: result.reason?.message || '请求失败',
+          };
+        });
+        const successfulInfos = parsedBenefitInfos
+          .filter((item) => item.info)
+          .map((item) => item.info as BenefitInfo);
+        const consensus: '一致' | '不一致' | '部分失败' =
+          parsedBenefitInfos.some((item) => item.error)
+            ? '部分失败'
+            : new Set(successfulInfos.map((item) => item.isBeneficial)).size <= 1
+              ? '一致'
+              : '不一致';
+        const firstBenefitInfo = successfulInfos[0] || null;
+        const modelSummary = parsedBenefitInfos
+          .map((item) => (item.info ? `${item.name}:${item.info.isBeneficial}` : `${item.name}:失败(${item.error})`))
+          .join('；');
         
         if (abortControllerRef.current?.signal.aborted) return;
 
         setResults(prev => prev.map((r) => r.id === item.id ? { 
           ...r, 
           status: RequestStatus.SUCCESS, 
-          result: enableQueryPrompt ? responseText : null,
-          isBeneficial: enableBenefitCheck ? benefitInfo?.isBeneficial || '否' : null,
-          beneficialDirection: enableBenefitCheck ? benefitInfo?.beneficialDirection || null : null,
+          result: null,
+          isBeneficial: firstBenefitInfo?.isBeneficial || '否',
+          beneficialDirection: firstBenefitInfo?.beneficialDirection || null,
+          benefitModelSummary: modelSummary,
+          benefitConsensus: consensus,
         } : r));
 
         setProgress(prev => ({ 
@@ -355,8 +421,7 @@ function App() {
     maxRows,
     enableBenefitCheck,
     benefitPromptTemplate,
-    enableQueryPrompt,
-    promptTemplate,
+    benefitApiConfigsText,
     selectedColumn,
   ]);
 
@@ -373,7 +438,6 @@ function App() {
   }, []);
 
   const canStart = Boolean(
-    config.apiKey &&
     (inputMode === 'manual' ? compoundsText.trim() : excelSheets.length > 0)
   );
 
@@ -439,6 +503,8 @@ function App() {
             <ConfigPanel 
               config={config} 
               onConfigChange={setConfig} 
+              benefitApiConfigsText={benefitApiConfigsText}
+              onBenefitApiConfigsTextChange={setBenefitApiConfigsText}
               disabled={isProcessing} 
             />
           </div>
@@ -448,10 +514,6 @@ function App() {
               setInputMode={setInputMode}
               compoundsText={compoundsText} 
               setCompoundsText={setCompoundsText}
-              enableQueryPrompt={enableQueryPrompt}
-              setEnableQueryPrompt={setEnableQueryPrompt}
-              promptTemplate={promptTemplate}
-              setPromptTemplate={setPromptTemplate}
               enableBenefitCheck={enableBenefitCheck}
               setEnableBenefitCheck={setEnableBenefitCheck}
               benefitPromptTemplate={benefitPromptTemplate}
