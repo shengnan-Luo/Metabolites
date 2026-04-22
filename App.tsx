@@ -15,8 +15,6 @@ const DEFAULT_CONFIG: ApiConfig = {
   minResultLength: 500,
 };
 
-const DEFAULT_PROMPT = `请对化合物详细介绍，包括：编号：25-32（不需要加任何形式的括号[]！！！！！），中文名称（英文名称）、【概述】、【结构特点】、【生物活性】、【医药用途】等内容，要求内容科学、详细。输出要求：【概述】：一段文字200-300字、【结构特点】(1)、（2）、（3）。【生物活性】(1)、（2）、（3）、（4）、（5）。【医药用途】(1)、（2）、（3）、（4）、（5）。特别是对生物活性和医药用途要如实，重点，具体描述！！注意输出格式加【】，例如：【概述】、【结构特点】、【生物活性】、【医药用途】。一定要注意格式，按照要求生成！生物活性和医药用途详细一点！
-化合物：{{compound}}`;
 const DEFAULT_BENEFIT_PROMPT_TEMPLATE = `请判断下述化合物是否具有抗炎活性，并给出一句话结论。
 化合物：{{compound}}
 
@@ -26,7 +24,6 @@ const DEFAULT_BENEFIT_PROMPT_TEMPLATE = `请判断下述化合物是否具有抗
 {"isBeneficial":"是或否","beneficialDirection":"一句话，说明是否具有抗炎活性；若无明确证据则写“暂无明确证据支持其具有抗炎活性”"}`;
 
 const MANUAL_SHEET_NAME = '手动输入';
-const MAX_RETRIES = 1;
 
 interface ExcelSheetData {
   name: string;
